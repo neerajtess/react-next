@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 
 const CropperPanel = (props) => {
@@ -18,15 +20,12 @@ const CropperPanel = (props) => {
   }
 
 
-
-  // Aspect ratio handler
   const handleAspectRatio = (ratio) => {
     const { width: imgWidth, height: imgHeight } = props.originalDimensions;
     const imgAspectRatio = imgWidth / imgHeight;
-
-    let newWidth = props.crop.width;
-    let newHeight = props.crop.height;
-
+  
+    let newWidth, newHeight;
+  
     // If ratio is undefined (Custom mode), allow free resizing
     if (ratio === undefined) {
       props.setCrop({
@@ -35,43 +34,43 @@ const CropperPanel = (props) => {
       });
       return; // Exit early, no need to enforce aspect ratio
     }
-
+  
     // Calculate new dimensions based on selected ratio
     const targetAspect = ratio;
-
-    if (targetAspect > imgAspectRatio) {
-      // Limit by width
-      newWidth = 100;
-      newHeight = (100 * imgAspectRatio) / targetAspect;
+  
+    // Determine new crop dimensions based on actual image dimensions
+    if (imgAspectRatio > targetAspect) {
+      // Image is wider than the target aspect ratio
+      newHeight = imgHeight * 0.5; // Set height to 50% of the image height
+      newWidth = newHeight * targetAspect;
     } else {
-      // Limit by height
-      newHeight = 100;
-      newWidth = 100 * targetAspect / imgAspectRatio;
+      // Image is taller than the target aspect ratio
+      newWidth = imgWidth * 0.5; // Set width to 50% of the image width
+      newHeight = newWidth / targetAspect;
     }
-
-    // Ensure values stay within bounds
-    newWidth = Math.min(100, Math.max(0, newWidth));
-    newHeight = Math.min(100, Math.max(0, newHeight));
-
-    // Calculate maximum possible position
-    const maxX = 100 - newWidth;
-    const maxY = 100 - newHeight;
-
-    // Adjust position to keep crop within bounds
-    const newX = Math.min(props.crop.x, maxX);
-    const newY = Math.min(props.crop.y, maxY);
-
+  
+    // Ensure dimensions do not exceed the image bounds
+    newWidth = Math.min(imgWidth, Math.max(0, newWidth));
+    newHeight = Math.min(imgHeight, Math.max(0, newHeight));
+  
+    // Calculate maximum possible position in pixel values
+    const maxX = imgWidth - newWidth;
+    const maxY = imgHeight - newHeight;
+  
+    // Center the crop area in pixel values
+    const newX = maxX / 2;
+    const newY = maxY / 2;
+  
     props.setCrop({
       ...props.crop,
-      width: newWidth,
-      height: newHeight,
-      x: newX,
-      y: newY,
+      width: newWidth / imgWidth * 100,  // Convert back to percentage
+      height: newHeight / imgHeight * 100, // Convert back to percentage
+      x: newX / imgWidth * 100,  // Convert back to percentage
+      y: newY / imgHeight * 100, // Convert back to percentage
       aspect: ratio, // Set the aspect ratio
     });
   };
-
-
+  
   return (
     <div className="flex flex-col pr-2 w-1/5">
       <div className="bg-gray-100 w-full p-3 rounded-lg shadow-md">
@@ -79,7 +78,7 @@ const CropperPanel = (props) => {
 
         <div className="flex gap-4 mb-4">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700">Width:</label>
+            <label className="block text-sm font-medium text-gray-700">Width %</label>
             <input
               type="number"
               className="mt-1 block w-full p-2 border border-gray-300 rounded-md outline-none"
@@ -121,7 +120,7 @@ const CropperPanel = (props) => {
           </div>
 
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700">Height:</label>
+            <label className="block text-sm font-medium text-gray-700">Height %</label>
             <input
               type="number"
               className="mt-1 block w-full p-2 border border-gray-300 rounded-md outline-none"

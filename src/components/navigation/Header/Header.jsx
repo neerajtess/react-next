@@ -24,8 +24,8 @@ const Header = () => {
       </div>
 
       <nav className="space-x-6 hidden sm:block">
-        <button className="hover:text-blue-200 transition-colors duration-200">Image Converter</button>
-        <button className="hover:text-blue-200 transition-colors duration-200">Home</button>
+        <button className="hover:text-blue-200 transition-colors duration-200"> <a href="https://cc.jpegcompressor.com/image-converter"> Image Converter </a></button>
+        <button className="hover:text-blue-200 transition-colors duration-200"><a href="/">Home</a></button>
       </nav>
 
      

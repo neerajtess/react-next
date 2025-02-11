@@ -1,195 +1,153 @@
 import React, { useState, useEffect } from 'react';
 
-function BlackWhite(props) {
-    const { filter, setFilter } = props;
+function BlackWhite({ filter, setFilter, crop, setCrop, originalDimensions }) {
+    const [unit, setUnit] = useState("px");
+    const [dimensionValues, setDimensionValues] = useState({
+        px: { width: 0, height: 0 },
+        in: { width: 0, height: 0 },
+        cm: { width: 0, height: 0 },
+        mm: { width: 0, height: 0 },
+    });
 
+    // Conversion constants
+    const PPI = 72;
+    const INCH_TO_CM = 2.54;
+    const INCH_TO_MM = 25.4;
 
+    // 1. Apply grayscale filter by default
+    useEffect(() => {
+        setFilter("grayscale(100%)");
+    }, [setFilter]);
 
-        const [unit, setUnit] = useState("px");
-        const { crop, setCrop, originalDimensions } = props;
-    
-        const [pixelValue, setPixelValue] = useState({ width: 0, height: 0 });
-        const [inchValue, setInchValue] = useState({ width: 0, height: 0 });
-        const [cmValue, setCmValue] = useState({ width: 0, height: 0 });
-        const [mmValue, setMmValue] = useState({ width: 0, height: 0 });
+    // 2. Initialize dimensions with original image size
+    useEffect(() => {
+        const updateDimensions = () => {
+            const inchWidth = originalDimensions.width / PPI;
+            const inchHeight = originalDimensions.height / PPI;
 
-
-
-
-
-
-
-     useEffect(() => {
-            const ppi = 72;
-            const incheWidth = originalDimensions.width / ppi;
-            const incheHeight = originalDimensions.height / ppi;
-            setInchValue({ width: incheWidth, height: incheHeight });
-            setPixelValue({ width: originalDimensions.width, height: originalDimensions.height });
-        }, [originalDimensions]);
-    
-        // Function to handle preset size selection
-        const handlePresetChange = (e) => {
-            const preset = e.target.value;
-    
-            // Define preset sizes in inches
-            const presetSizes = {
-                "2x2 in": { width: 2, height: 2 },
-                "3.5x4.5 cm": { width: 3.5 / 2.54, height: 4.5 / 2.54 },
-                "5x7 cm": { width: 5 / 2.54, height: 7 / 2.54 },
-                "4x6 cm": { width: 4 / 2.54, height: 6 / 2.54 },
-                "35x45 mm": { width: 35 / 25.4, height: 45 / 25.4 },
-                "50x70 mm": { width: 50 / 25.4, height: 70 / 25.4 },
-            };
-    
-            const selectedSize = presetSizes[preset] || { width: 0, height: 0 };
-    
-            // Convert the selected size to the current unit and update values
-            if (unit === "in") {
-                setInchValue({ width: selectedSize.width, height: selectedSize.height });
-            } else if (unit === "cm") {
-                setCmValue({ width: selectedSize.width * 2.54, height: selectedSize.height * 2.54 });
-            } else if (unit === "mm") {
-                setMmValue({ width: selectedSize.width * 25.4, height: selectedSize.height * 25.4 });
-            } else if (unit === "px") {
-                const widthPx = Math.min(selectedSize.width * 72, originalDimensions.width);
-                const heightPx = Math.min(selectedSize.height * 72, originalDimensions.height);
-                setPixelValue({ width: widthPx, height: heightPx });
-            }
-    
-            // Update crop area
-            const widthPercent = (selectedSize.width * 72 / originalDimensions.width) * 100;
-            const heightPercent = (selectedSize.height * 72 / originalDimensions.height) * 100;
-            setCrop({ 
-                ...crop, 
-                width: Math.min(widthPercent, 100), 
-                height: Math.min(heightPercent, 100), 
-                x: 0, 
-                y: 0 
+            setDimensionValues({
+                px: { 
+                    width: originalDimensions.width, 
+                    height: originalDimensions.height 
+                },
+                in: { 
+                    width: inchWidth, 
+                    height: inchHeight 
+                },
+                cm: { 
+                    width: inchWidth * INCH_TO_CM, 
+                    height: inchHeight * INCH_TO_CM 
+                },
+                mm: { 
+                    width: inchWidth * INCH_TO_MM, 
+                    height: inchHeight * INCH_TO_MM 
+                },
             });
         };
-    
-        // Function to get the width value based on the selected unit
-        const imgValueWidth = (unit) => {
-            if (unit === "px") return pixelValue.width || 0;
-            if (unit === "in") return inchValue.width || 0;
-            if (unit === "cm") return cmValue.width || 0;
-            if (unit === "mm") return mmValue.width || 0;
-            return 0;
+
+        if (originalDimensions.width > 0 && originalDimensions.height > 0) {
+            updateDimensions();
+        }
+    }, [originalDimensions]);
+
+    // 3. Handle dimension changes with bounds checking
+    const handleDimensionChange = (dimension, value) => {
+        if (!/^\d*\.?\d*$/.test(value)) return;
+        const numValue = parseFloat(value) || 0;
+
+        let convertedPx, maxPixels;
+        const isWidth = dimension === 'width';
+        const axis = isWidth ? 'width' : 'height';
+        
+        // Get maximum allowed pixels for this dimension
+        maxPixels = originalDimensions[axis];
+
+        // Convert input value to pixels based on unit
+        switch(unit) {
+            case "px":
+                convertedPx = Math.min(numValue, maxPixels);
+                break;
+            case "in":
+                convertedPx = Math.min(numValue * PPI, maxPixels);
+                break;
+            case "cm":
+                convertedPx = Math.min((numValue / INCH_TO_CM) * PPI, maxPixels);
+                break;
+            case "mm":
+                convertedPx = Math.min((numValue / INCH_TO_MM) * PPI, maxPixels);
+                break;
+            default:
+                convertedPx = 0;
+        }
+
+        // Calculate new crop percentage
+        const newPercentage = (convertedPx / maxPixels) * 100;
+        
+        // Calculate maximum allowed position
+        const maxPosition = 100 - newPercentage;
+        
+        // Preserve existing position but clamp to new bounds
+        const newPosition = {
+            x: Math.min(Math.max(crop.x, 0), maxPosition),
+            y: Math.min(Math.max(crop.y, 0), maxPosition)
         };
-    
-        // Function to get the height value based on the selected unit
-        const imgValueHeight = (unit) => {
-            if (unit === "px") return pixelValue.height || 0;
-            if (unit === "in") return inchValue.height || 0;
-            if (unit === "cm") return cmValue.height || 0;
-            if (unit === "mm") return mmValue.height || 0;
-            return 0;
-        };
-    
-        const handleDimensionChange = (dimension, value) => {
-            if (!/^\d*\.?\d*$/.test(value)) return;
-            const numValue = parseFloat(value) || 0;
-    
-            let updatedCrop = { ...crop };
-            
+
+        // Update crop state
+        setCrop({
+            ...crop,
+            [dimension]: newPercentage,
+            ...(isWidth ? { x: newPosition.x } : { y: newPosition.y })
+        });
+
+        // Update displayed values
+        const newValues = { ...dimensionValues };
+        const updateConvertedValues = () => {
             switch(unit) {
                 case "px":
-                    const maxPixels = dimension === 'width' ? originalDimensions.width : originalDimensions.height;
-                    const finalPixelValue = Math.min(maxPixels, numValue);
-                    const pixelPercent = (finalPixelValue / maxPixels) * 100;
-                    
-                    setPixelValue(prev => ({
-                        ...prev,
-                        [dimension]: finalPixelValue
-                    }));
-                    
-                    updatedCrop = {
-                        ...crop,
-                        [dimension]: pixelPercent,
-                        x: 0,
-                        y: 0
-                    };
+                    newValues.px[dimension] = convertedPx;
                     break;
-    
                 case "in":
-                    const totalInches = dimension === 'width' ? 
-                        originalDimensions.width / 72 : 
-                        originalDimensions.height / 72;
-                    const finalInchValue = Math.min(totalInches, numValue);
-                    const inputValPx = finalInchValue * 72;
-                    const onePercentPx = dimension === 'width' ? 
-                        originalDimensions.width / 100 : 
-                        originalDimensions.height / 100;
-                    const inputPerVal = inputValPx / onePercentPx;
-                    
-                    setInchValue(prev => ({
-                        ...prev,
-                        [dimension]: finalInchValue
-                    }));
-                    
-                    updatedCrop = {
-                        ...crop,
-                        [dimension]: inputPerVal,
-                        x: 0,
-                        y: 0
-                    };
+                    newValues.in[dimension] = convertedPx / PPI;
                     break;
-    
                 case "cm":
-                    const maxCm = (dimension === 'width' ? originalDimensions.width : originalDimensions.height) * 2.54 / 72;
-                    const finalCmValue = Math.min(maxCm, numValue);
-                    const cmPercent = (finalCmValue / maxCm) * 100;
-                    
-                    setCmValue(prev => ({
-                        ...prev,
-                        [dimension]: finalCmValue
-                    }));
-                    
-                    updatedCrop = {
-                        ...crop,
-                        [dimension]: cmPercent,
-                        x: 0,
-                        y: 0
-                    };
+                    newValues.cm[dimension] = (convertedPx / PPI) * INCH_TO_CM;
                     break;
-    
                 case "mm":
-                    const maxMm = (dimension === 'width' ? originalDimensions.width : originalDimensions.height) * 25.4 / 72;
-                    const finalMmValue = Math.min(maxMm, numValue);
-                    const mmPercent = (finalMmValue / maxMm) * 100;
-                    
-                    setMmValue(prev => ({
-                        ...prev,
-                        [dimension]: finalMmValue
-                    }));
-                    
-                    updatedCrop = {
-                        ...crop,
-                        [dimension]: mmPercent,
-                        x: 0,
-                        y: 0
-                    };
+                    newValues.mm[dimension] = (convertedPx / PPI) * INCH_TO_MM;
                     break;
             }
-    
-            setCrop(updatedCrop);
         };
+        updateConvertedValues();
+        setDimensionValues(newValues);
+    };
 
-
-
-
-
-
-
+    // Helper to get display values
+    const getDimensionValue = (dimension) => {
+        return Math.round(dimensionValues[unit][dimension]) || '';
+    };
 
     return (
-
-
-        <div className="flex flex-col pr-2  w-1/5">
+        <div className="flex flex-col pr-2 w-1/5">
             <div className="bg-gray-100 w-full p-3 rounded-lg shadow-md">
                 <h2 className="text-lg font-semibold mb-4">Black & White Options</h2>
 
+                {/* Filter Selector */}
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700">Filter Options:</label>
+                    <select
+                        className="mt-1 block w-full p-2 border border-gray-300 rounded-md outline-none"
+                        onChange={(e) => setFilter(e.target.value)}
+                        value={filter}
+                    >
+                        <option value="grayscale(100%)">Black & White</option>
+                        <option value="none">None</option>
+                        <option value="invert(100%)">Invert</option>
+                        <option value="sepia(100%)">Sepia</option>
+                        <option value="grayscale(100%) contrast(1000%)">Threshold</option>
+                    </select>
+                </div>
 
+                {/* Unit Selector */}
                 <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700">Unit:</label>
                     <select
@@ -204,57 +162,33 @@ function BlackWhite(props) {
                     </select>
                 </div>
 
+                {/* Dimension Inputs */}
                 <div className="flex gap-4 mb-4">
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700">Width - {unit}</label>
                         <input
                             type="number"
+                            min="0"
                             className="mt-1 block w-full p-2 border border-gray-300 rounded-md outline-none"
-                            value={Math.round(imgValueWidth(unit))?Math.round(imgValueWidth(unit)):""}
+                            value={getDimensionValue('width')}
                             onChange={(e) => handleDimensionChange('width', e.target.value)}
                         />
                     </div>
-
                     <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700">Height - {unit}</label>
                         <input
                             type="number"
+                            min="0"
                             className="mt-1 block w-full p-2 border border-gray-300 rounded-md outline-none"
-                            value={Math.round(imgValueHeight(unit))?Math.round(imgValueHeight(unit)):""}
+                            value={getDimensionValue('height')}
                             onChange={(e) => handleDimensionChange('height', e.target.value)}
                         />
                     </div>
-                    
                 </div>
-
-
-
-
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700">Filter Options:</label>
-
-                    {/* value={unit} */}
-
-
-
-                    <select id="filter-options" className="mt-1 block w-full p-2 border border-gray-300 rounded-md outline-none"
-                        onChange={(e) => setFilter(e.target.value)}
-                    >
-                        <option value="none">None</option>
-                        <option value="invert(100%)">Invert</option>
-                        <option value="grayscale(100%)">Grayscale</option>
-                        <option value="sepia(100%)">Sepia</option>
-                        <option value="grayscale(100%) contrast(1000%)">Threshold</option>
-                    </select>
-                </div>
-
-
             </div>
-            <div className="bg-blue-100 border border-black h-[200px] ">Ad-1</div>
+            <div className="bg-blue-100 border border-black h-[200px]">Ad-1</div>
         </div>
-
-
-    )
+    );
 }
 
-export default BlackWhite
+export default BlackWhite;
